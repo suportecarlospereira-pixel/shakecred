@@ -1,14 +1,15 @@
-import React from 'react';
-import { Loan } from '../types';
+import React, { useState } from 'react';
+import { Loan, Client } from '../types';
 import LoanList from './LoanList';
 import { AlertCircle, Calendar } from 'lucide-react';
 
 interface ActiveViewProps {
   loans: Loan[];
   onUpdate: () => void;
+  onViewDetails: (loan: Loan) => void;
 }
 
-const ActiveView: React.FC<ActiveViewProps> = ({ loans, onUpdate }) => {
+const ActiveView: React.FC<ActiveViewProps> = ({ loans, onUpdate, onViewDetails }) => {
   // Normalize today to midnight for comparison
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -29,7 +30,14 @@ const ActiveView: React.FC<ActiveViewProps> = ({ loans, onUpdate }) => {
     return dueDate > today;
   });
 
-  const totalToCollectToday = dueTodayOrLate.reduce((acc, curr) => acc + curr.totalOwing, 0);
+  const totalToCollectToday = dueTodayOrLate.reduce((acc, curr) => {
+    // Se tiver parcelas, soma apenas o que falta
+    if (curr.installments) {
+        const paid = curr.installments.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0);
+        return acc + (curr.totalOwing - paid);
+    }
+    return acc + curr.totalOwing;
+  }, 0);
 
   return (
     <div className="space-y-8">
@@ -54,7 +62,7 @@ const ActiveView: React.FC<ActiveViewProps> = ({ loans, onUpdate }) => {
                 </p>
             </div>
         </div>
-        <LoanList loans={dueTodayOrLate} onUpdate={onUpdate} />
+        <LoanList loans={dueTodayOrLate} onUpdate={onUpdate} onViewDetails={onViewDetails} />
       </div>
 
       {/* Standard Active Section */}
@@ -63,7 +71,7 @@ const ActiveView: React.FC<ActiveViewProps> = ({ loans, onUpdate }) => {
             <Calendar className="w-6 h-6" />
             Vencimentos Futuros
         </h3>
-        <LoanList loans={upcoming} onUpdate={onUpdate} />
+        <LoanList loans={upcoming} onUpdate={onUpdate} onViewDetails={onViewDetails} />
       </div>
     </div>
   );

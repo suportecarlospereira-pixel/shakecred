@@ -2,20 +2,17 @@ import React, { useState } from 'react';
 import { Client, Loan } from '../types';
 import { clientService } from '../services/clientService';
 import { Plus, User, Phone, Trash2, Search, FileText } from 'lucide-react';
-import ClientHistoryModal from './ClientHistoryModal';
 
 interface ClientsViewProps {
   clients: Client[];
   loans: Loan[];
   onUpdate: () => void;
+  onViewClientHistory: (client: Client) => void;
 }
 
-const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate }) => {
+const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate, onViewClientHistory }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // State for Modal
-  const [selectedClientForHistory, setSelectedClientForHistory] = useState<Client | null>(null);
   
   // New Client Form State
   const [name, setName] = useState('');
@@ -64,7 +61,14 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate }) =
     const clientLoans = loans.filter(l => l.clientId === clientId);
     const active = clientLoans.filter(l => l.status === 'active').length;
     const paid = clientLoans.filter(l => l.status === 'paid').length;
-    const debt = clientLoans.filter(l => l.status === 'active').reduce((acc, curr) => acc + curr.totalOwing, 0);
+    const debt = clientLoans.filter(l => l.status === 'active').reduce((acc, curr) => {
+      // Calcular dívida real subtraindo parcelas pagas
+      if (curr.installments) {
+        const paidAmount = curr.installments.filter(i => i.status === 'paid').reduce((sum, inst) => sum + inst.amount, 0);
+        return acc + (curr.totalOwing - paidAmount);
+      }
+      return acc + curr.totalOwing;
+    }, 0);
     return { active, paid, debt, allLoans: clientLoans };
   };
 
@@ -209,7 +213,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate }) =
 
                 {/* Open History Button */}
                 <button 
-                  onClick={() => setSelectedClientForHistory(client)}
+                  onClick={() => onViewClientHistory(client)}
                   className="w-full mt-4 bg-accent/20 hover:bg-accent/40 text-slate-300 py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors border border-accent/30"
                 >
                   <FileText className="w-4 h-4" />
@@ -220,15 +224,6 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate }) =
           })
         )}
       </div>
-
-      {/* History Modal */}
-      {selectedClientForHistory && (
-        <ClientHistoryModal 
-          client={selectedClientForHistory} 
-          loans={getClientStats(selectedClientForHistory.id!).allLoans}
-          onClose={() => setSelectedClientForHistory(null)} 
-        />
-      )}
     </div>
   );
 };

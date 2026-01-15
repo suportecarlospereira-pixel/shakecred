@@ -1,16 +1,19 @@
-import React from 'react';
-import { X, Calendar, DollarSign, CheckCircle, Clock, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Calendar, DollarSign, CheckCircle, Clock, FileText, Check } from 'lucide-react';
 import { Client, Loan } from '../types';
+import { loanService } from '../services/loanService';
 
 interface ClientHistoryModalProps {
   client: Client;
   loans: Loan[];
   onClose: () => void;
+  onUpdate: () => void; // Para atualizar dados após pagamento
 }
 
-const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, loans, onClose }) => {
+const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, loans, onClose, onUpdate }) => {
   const activeLoans = loans.filter(l => l.status === 'active');
   const paidLoans = loans.filter(l => l.status === 'paid');
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const formatDate = (isoString: string) => {
     return new Date(isoString).toLocaleDateString('pt-BR');
@@ -18,6 +21,21 @@ const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, loans, 
 
   const formatMoney = (val: number) => {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const handlePayInstallment = async (loanId: string, installmentNumber: number) => {
+    if (!window.confirm(`Confirmar recebimento da parcela ${installmentNumber}?`)) return;
+    
+    setProcessingId(`${loanId}-${installmentNumber}`);
+    try {
+      await loanService.payInstallment(loanId, installmentNumber);
+      onUpdate(); // Recarrega os dados
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao atualizar parcela.");
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   return (
@@ -62,47 +80,86 @@ const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, loans, 
               <p className="text-slate-500 italic">Nenhum empréstimo ativo no momento.</p>
             ) : (
               <div className="space-y-4">
-                {activeLoans.map(loan => (
-                  <div key={loan.id} className="bg-dark/40 border border-blue-500/20 rounded-xl p-4">
-                    <div className="flex justify-between items-start mb-4 border-b border-white/5 pb-2">
-                      <div>
-                        <p className="text-slate-400 text-sm">Valor Emprestado</p>
-                        <p className="text-white font-bold">{formatMoney(loan.amount)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-slate-400 text-sm">Total a Pagar</p>
-                        <p className="text-blue-400 font-bold text-xl">{formatMoney(loan.totalOwing)}</p>
-                      </div>
-                    </div>
+                {activeLoans.map(loan => {
+                  // Calcular quanto falta pagar
+                  const paidAmount = loan.installments 
+                    ? loan.installments.filter(i => i.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0)
+                    : 0;
+                  const remaining = loan.totalOwing - paidAmount;
 
-                    {/* Installments Breakdown */}
-                    <div className="bg-secondary/50 rounded-lg p-3">
-                      <p className="text-xs font-bold text-slate-500 uppercase mb-2">Cronograma de Pagamento</p>
-                      {loan.installments && loan.installments.length > 0 ? (
-                        <div className="space-y-2">
-                          {loan.installments.map((inst, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-sm p-2 bg-dark rounded border border-accent/20">
-                              <span className="text-slate-300 font-medium">Parcela {inst.number}</span>
-                              <div className="flex items-center gap-4">
-                                <span className="text-white font-bold">{formatMoney(inst.amount)}</span>
-                                <span className={`flex items-center gap-1 ${new Date(inst.dueDate) < new Date() ? 'text-red-400 font-bold' : 'text-slate-400'}`}>
-                                  <Calendar className="w-3 h-3" />
-                                  {formatDate(inst.dueDate)}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
+                  return (
+                    <div key={loan.id} className="bg-dark/40 border border-blue-500/20 rounded-xl p-4">
+                      <div className="flex justify-between items-start mb-4 border-b border-white/5 pb-2">
+                        <div>
+                          <p className="text-slate-400 text-sm">Valor Emprestado</p>
+                          <p className="text-white font-bold">{formatMoney(loan.amount)}</p>
                         </div>
-                      ) : (
-                        <div className="flex justify-between items-center text-sm p-2 bg-dark rounded border border-accent/20">
-                          <span className="text-slate-300">Pagamento Único</span>
-                          <span className="text-white font-bold">{formatMoney(loan.totalOwing)}</span>
-                          <span className="text-slate-400">{formatDate(loan.dueDate)}</span>
+                        <div className="text-right">
+                          <p className="text-slate-400 text-sm">Restante a Pagar</p>
+                          <p className="text-blue-400 font-bold text-xl">
+                            {formatMoney(remaining)} 
+                            <span className="text-xs text-slate-500 font-normal ml-1">
+                               (Total: {formatMoney(loan.totalOwing)})
+                            </span>
+                          </p>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Installments Breakdown */}
+                      <div className="bg-secondary/50 rounded-lg p-3">
+                        <p className="text-xs font-bold text-slate-500 uppercase mb-2">Parcelas (Clique para receber)</p>
+                        {loan.installments && loan.installments.length > 0 ? (
+                          <div className="space-y-2">
+                            {loan.installments.map((inst, idx) => {
+                              const isPaid = inst.status === 'paid';
+                              const isProcessing = processingId === `${loan.id}-${inst.number}`;
+
+                              return (
+                                <div key={idx} className={`flex justify-between items-center text-sm p-3 rounded border transition-all ${isPaid ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-dark border-accent/20'}`}>
+                                  <span className={isPaid ? 'text-emerald-400 font-medium' : 'text-slate-300 font-medium'}>
+                                    {inst.number}ª Parcela
+                                  </span>
+                                  
+                                  <div className="flex items-center gap-4">
+                                    <div className="text-right">
+                                      <span className={isPaid ? 'text-emerald-400 font-bold block' : 'text-white font-bold block'}>
+                                        {formatMoney(inst.amount)}
+                                      </span>
+                                      <span className={`text-xs flex items-center justify-end gap-1 ${new Date(inst.dueDate) < new Date() && !isPaid ? 'text-red-400 font-bold' : 'text-slate-500'}`}>
+                                        <Calendar className="w-3 h-3" />
+                                        {formatDate(inst.dueDate)}
+                                      </span>
+                                    </div>
+
+                                    {isPaid ? (
+                                      <span className="flex items-center gap-1 text-emerald-400 font-bold text-xs bg-emerald-500/20 px-2 py-1 rounded-full">
+                                        <Check className="w-3 h-3" /> PAGO
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={() => handlePayInstallment(loan.id!, inst.number)}
+                                        disabled={isProcessing}
+                                        className="bg-primary hover:bg-emerald-600 text-dark font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors disabled:opacity-50"
+                                      >
+                                        {isProcessing ? '...' : 'Receber'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-center text-sm p-2 bg-dark rounded border border-accent/20">
+                            <span className="text-slate-300">Pagamento Único</span>
+                            <span className="text-white font-bold">{formatMoney(loan.totalOwing)}</span>
+                            <span className="text-slate-400">{formatDate(loan.dueDate)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -111,7 +168,7 @@ const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, loans, 
           <section>
             <h3 className="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2">
               <CheckCircle className="w-5 h-5" />
-              Histórico de Pagos
+              Histórico de Pagos (Finalizados)
             </h3>
             
             {paidLoans.length === 0 ? (

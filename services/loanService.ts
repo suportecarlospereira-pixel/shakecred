@@ -1,6 +1,6 @@
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, updateDoc, doc, deleteDoc, query, orderBy } from 'firebase/firestore';
-import { Loan } from '../types';
+import { collection, addDoc, getDocs, updateDoc, doc, deleteDoc, getDoc, query, orderBy } from 'firebase/firestore';
+import { Loan, Installment } from '../types';
 
 const LOAN_COLLECTION = 'loans';
 
@@ -38,6 +38,41 @@ export const loanService = {
       await updateDoc(loanRef, { status });
     } catch (e) {
       console.error("Error updating document: ", e);
+      throw e;
+    }
+  },
+
+  // Pay a specific installment
+  payInstallment: async (loanId: string, installmentNumber: number) => {
+    try {
+      const loanRef = doc(db, LOAN_COLLECTION, loanId);
+      const loanSnap = await getDoc(loanRef);
+      
+      if (!loanSnap.exists()) throw new Error("Loan not found");
+      
+      const loanData = loanSnap.data() as Loan;
+      
+      if (!loanData.installments) return;
+
+      // Update the specific installment
+      const updatedInstallments = loanData.installments.map(inst => {
+        if (inst.number === installmentNumber) {
+          return { ...inst, status: 'paid' as const }; // Force type
+        }
+        return inst;
+      });
+
+      // Check if all installments are paid
+      const allPaid = updatedInstallments.every(inst => inst.status === 'paid');
+      const newStatus = allPaid ? 'paid' : 'active';
+
+      await updateDoc(loanRef, {
+        installments: updatedInstallments,
+        status: newStatus
+      });
+
+    } catch (e) {
+      console.error("Error paying installment: ", e);
       throw e;
     }
   },

@@ -1,26 +1,36 @@
 import React from 'react';
-import { CheckCircle, Trash2, Calendar, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Trash2, Calendar, AlertTriangle, FileText, List } from 'lucide-react';
 import { Loan } from '../types';
 import { loanService } from '../services/loanService';
 
 interface LoanListProps {
   loans: Loan[];
   onUpdate: () => void;
+  onViewDetails?: (loan: Loan) => void;
   title?: string;
   readOnly?: boolean;
 }
 
-const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, title, readOnly = false }) => {
+const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, onViewDetails, title, readOnly = false }) => {
   
-  const handleStatusChange = async (id: string, newStatus: Loan['status']) => {
-    if (window.confirm(`Deseja alterar o status para ${newStatus === 'paid' ? 'PAGO' : 'ATIVO'}?`)) {
-      await loanService.updateLoanStatus(id, newStatus);
-      onUpdate();
+  const handleStatusChange = async (loan: Loan, newStatus: Loan['status']) => {
+    // Se tiver parcelas, alerta diferente
+    if (loan.installments && loan.installments.length > 0) {
+      if (!window.confirm(`ATENÇÃO: Este empréstimo é parcelado.\n\nMarcar como PAGO vai quitar TODAS as parcelas restantes de uma vez.\n\nDeseja continuar?`)) {
+        return;
+      }
+    } else {
+      if (!window.confirm(`Deseja alterar o status para ${newStatus === 'paid' ? 'PAGO' : 'ATIVO'}?`)) {
+        return;
+      }
     }
+
+    await loanService.updateLoanStatus(loan.id!, newStatus);
+    onUpdate();
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja apagar este registro? Essa ação não pode ser desfeita.')) {
+    if (window.confirm('Tem certeza que deseja apagar este registro? Essa ação não pode ser desfeita e removerá o empréstimo do histórico.')) {
       await loanService.deleteLoan(id);
       onUpdate();
     }
@@ -38,7 +48,6 @@ const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, title, readOnly = 
       };
     }
     
-    // Normalize dates to midnight for accurate comparison
     const today = new Date();
     today.setHours(0,0,0,0);
     const due = new Date(dueDateStr);
@@ -78,7 +87,7 @@ const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, title, readOnly = 
             <tr>
               <th className="p-4 font-medium">Cliente</th>
               <th className="p-4 font-medium">Valor Emprestado</th>
-              <th className="p-4 font-medium">Total a Receber</th>
+              <th className="p-4 font-medium">Total / Restante</th>
               <th className="p-4 font-medium">Vencimento</th>
               <th className="p-4 font-medium">Status</th>
               <th className="p-4 font-medium text-right">Ações</th>
@@ -94,6 +103,20 @@ const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, title, readOnly = 
             ) : (
               loans.map((loan) => {
                 const statusInfo = getStatusInfo(loan.status, loan.dueDate);
+                
+                // Cálculo de parcelas
+                const hasInstallments = loan.installments && loan.installments.length > 0;
+                let installmentText = "";
+                let remaining = loan.totalOwing;
+
+                if (hasInstallments) {
+                    const paidCount = loan.installments!.filter(i => i.status === 'paid').length;
+                    const totalCount = loan.installments!.length;
+                    const paidAmount = loan.installments!.filter(i => i.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0);
+                    remaining = loan.totalOwing - paidAmount;
+                    installmentText = `${paidCount}/${totalCount} pagas`;
+                }
+
                 return (
                   <tr key={loan.id} className="hover:bg-accent/20 transition-colors">
                     <td className="p-4 font-medium text-white">
@@ -103,8 +126,15 @@ const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, title, readOnly = 
                     <td className="p-4 text-slate-300">
                       {loan.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </td>
-                    <td className="p-4 font-bold text-emerald-400">
-                      {loan.totalOwing.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    <td className="p-4">
+                        <div className="font-bold text-emerald-400">
+                            {remaining.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </div>
+                        {hasInstallments && loan.status === 'active' && (
+                            <div className="text-xs text-slate-400">
+                                {installmentText}
+                            </div>
+                        )}
                     </td>
                     <td className="p-4 text-slate-400">
                       <div className="flex items-center gap-2">
@@ -117,19 +147,32 @@ const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, title, readOnly = 
                         {statusInfo.text}
                       </span>
                     </td>
-                    <td className="p-4 text-right space-x-2">
+                    <td className="p-4 text-right space-x-2 flex justify-end">
+                      {/* Botão Ver Parcelas - Agora visível sempre que tem parcelas e a função existe */}
+                      {hasInstallments && onViewDetails && (
+                        <button 
+                          onClick={() => onViewDetails(loan)}
+                          title="Ver Parcelas / Receber"
+                          className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors border border-blue-500/30"
+                        >
+                          <List className="w-5 h-5" />
+                        </button>
+                      )}
+
                       {!readOnly && loan.status !== 'paid' && (
                         <button 
-                          onClick={() => handleStatusChange(loan.id!, 'paid')}
-                          title="Marcar como Pago"
+                          onClick={() => handleStatusChange(loan, 'paid')}
+                          title={hasInstallments ? "Quitar TUDO" : "Marcar como Pago"}
                           className="p-2 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors"
                         >
                           <CheckCircle className="w-5 h-5" />
                         </button>
                       )}
+                      
+                      {/* Botão de Excluir - Sempre visível */}
                       <button 
                         onClick={() => handleDelete(loan.id!)}
-                        title="Excluir"
+                        title="Excluir do Histórico"
                         className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-5 h-5" />

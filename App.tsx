@@ -8,6 +8,7 @@ import LoanList from './components/LoanList';
 import ActiveView from './components/ActiveView';
 import HistoryView from './components/HistoryView';
 import ClientsView from './components/ClientsView';
+import ClientHistoryModal from './components/ClientHistoryModal';
 import { LayoutDashboard, Users, LogOut, TrendingUp, Wallet, DollarSign, History, AlertTriangle, XCircle, UserPlus } from 'lucide-react';
 import { auth } from './firebase';
 
@@ -18,6 +19,9 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'dashboard' | 'active' | 'history' | 'clients'>('dashboard');
   const [permissionError, setPermissionError] = useState(false);
+  
+  // Centralized Modal State
+  const [selectedClientForHistory, setSelectedClientForHistory] = useState<Client | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -79,6 +83,20 @@ const App: React.FC = () => {
     setPermissionError(false);
   };
 
+  // Helper to open details from any LoanList
+  const handleViewDetails = (loan: Loan) => {
+    if (!loan.clientId) return;
+    const client = clients.find(c => c.id === loan.clientId);
+    if (client) {
+      setSelectedClientForHistory(client);
+    }
+  };
+
+  // Helper to open details from Client List
+  const handleOpenClientHistory = (client: Client) => {
+    setSelectedClientForHistory(client);
+  };
+
   if (!isAuthenticated) {
     return <Login onLogin={() => setIsAuthenticated(true)} />;
   }
@@ -125,11 +143,11 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch(view) {
       case 'active':
-        return <ActiveView loans={loans} onUpdate={fetchData} />;
+        return <ActiveView loans={loans} onUpdate={fetchData} onViewDetails={handleViewDetails} />;
       case 'history':
-        return <HistoryView loans={loans} onUpdate={fetchData} />;
+        return <HistoryView loans={loans} onUpdate={fetchData} onViewDetails={handleViewDetails} />;
       case 'clients':
-        return <ClientsView clients={clients} loans={loans} onUpdate={fetchData} />;
+        return <ClientsView clients={clients} loans={loans} onUpdate={fetchData} onViewClientHistory={handleOpenClientHistory} />;
       default: // Dashboard
         return (
           <>
@@ -204,6 +222,7 @@ const App: React.FC = () => {
                   title="Últimos Lançamentos" 
                   loans={loans.slice(0, 5)} 
                   onUpdate={fetchData} 
+                  onViewDetails={handleViewDetails}
                 />
               </div>
             </div>
@@ -213,7 +232,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-dark flex flex-col md:flex-row">
+    <div className="min-h-screen bg-dark flex flex-col md:flex-row relative">
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-secondary border-r border-accent/30 flex flex-col shrink-0">
         <div className="p-6 border-b border-accent/30">
@@ -280,6 +299,16 @@ const App: React.FC = () => {
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         {renderContent()}
       </main>
+
+      {/* Global Modal */}
+      {selectedClientForHistory && (
+        <ClientHistoryModal 
+          client={selectedClientForHistory} 
+          loans={loans.filter(l => l.clientId === selectedClientForHistory.id)}
+          onClose={() => setSelectedClientForHistory(null)} 
+          onUpdate={fetchData}
+        />
+      )}
     </div>
   );
 };

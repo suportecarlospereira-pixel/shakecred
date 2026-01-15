@@ -17,19 +17,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     e.preventDefault();
     setError('');
 
-    if (username === 'shake' && password === 'lulaladrao') {
+    // Convert username to lowercase for comparison
+    const normalizedUser = username.toLowerCase().trim();
+
+    if (normalizedUser === 'shake' && password === 'lulaladrao') {
       setLoading(true);
       try {
-        // Attempt to sign in anonymously to satisfy Firestore Security Rules
         await signInAnonymously(auth);
         onLogin();
       } catch (err: any) {
         console.error("Firebase Auth Error:", err);
-        // If anonymous auth is not enabled in console, we might still proceed 
-        // if the user has public rules, but usually this error means we need to warn them.
         if (err.code === 'auth/operation-not-allowed') {
-          // If auth is disabled but credentials are correct, try to proceed anyway.
-          // The App component will catch the Firestore permission error if rules are strict.
           onLogin();
         } else {
           setError('Erro de conexão com o servidor. Tente novamente.');
