@@ -39,7 +39,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate, onV
       onUpdate();
     } catch (error) {
       console.error(error);
-      alert("Erro ao criar cliente");
+      alert("Erro ao criar cliente. Verifique se você está logado.");
     } finally {
       setLoading(false);
     }
@@ -47,8 +47,13 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate, onV
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Tem certeza? Isso apagará o cadastro do cliente, mas manterá os empréstimos existentes no histórico.")) {
-      await clientService.deleteClient(id);
-      onUpdate();
+      try {
+        await clientService.deleteClient(id);
+        onUpdate();
+      } catch (error) {
+        console.error("Erro na exclusão:", error);
+        alert("Não foi possível excluir. Verifique se você está logado no sistema (Permissão Negada).");
+      }
     }
   };
 
