@@ -7,6 +7,13 @@ export interface Client {
   createdAt: number;
 }
 
+export interface Installment {
+  number: number;
+  amount: number;
+  dueDate: string; // ISO date
+  status: 'pending' | 'paid';
+}
+
 export interface Loan {
   id?: string;
   clientId?: string; // ID do cliente vinculado
@@ -16,7 +23,8 @@ export interface Loan {
   totalOwing: number; // Valor final a receber
   profit: number; // Lucro calculado
   startDate: string; // ISO date
-  dueDate: string; // ISO date
+  dueDate: string; // ISO date (Data da última parcela)
+  installments?: Installment[]; // Lista de parcelas e datas
   status: 'active' | 'paid' | 'late';
   notes?: string;
   createdAt: number;

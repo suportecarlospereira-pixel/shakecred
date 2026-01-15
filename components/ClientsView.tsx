@@ -2,16 +2,20 @@ import React, { useState } from 'react';
 import { Client, Loan } from '../types';
 import { clientService } from '../services/clientService';
 import { Plus, User, Phone, Trash2, Search, FileText } from 'lucide-react';
+import ClientHistoryModal from './ClientHistoryModal';
 
 interface ClientsViewProps {
   clients: Client[];
-  loans: Loan[]; // Para contar histórico se precisar
+  loans: Loan[];
   onUpdate: () => void;
 }
 
 const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // State for Modal
+  const [selectedClientForHistory, setSelectedClientForHistory] = useState<Client | null>(null);
   
   // New Client Form State
   const [name, setName] = useState('');
@@ -61,7 +65,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate }) =
     const active = clientLoans.filter(l => l.status === 'active').length;
     const paid = clientLoans.filter(l => l.status === 'paid').length;
     const debt = clientLoans.filter(l => l.status === 'active').reduce((acc, curr) => acc + curr.totalOwing, 0);
-    return { active, paid, debt };
+    return { active, paid, debt, allLoans: clientLoans };
   };
 
   return (
@@ -158,7 +162,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate }) =
           filteredClients.map(client => {
             const stats = getClientStats(client.id!);
             return (
-              <div key={client.id} className="bg-secondary p-5 rounded-2xl border border-accent/30 hover:border-primary/30 transition-all group">
+              <div key={client.id} className="bg-secondary p-5 rounded-2xl border border-accent/30 hover:border-primary/30 transition-all group relative">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 group-hover:bg-primary/20 group-hover:text-primary transition-colors">
@@ -202,11 +206,29 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, loans, onUpdate }) =
                     </span>
                   </div>
                 </div>
+
+                {/* Open History Button */}
+                <button 
+                  onClick={() => setSelectedClientForHistory(client)}
+                  className="w-full mt-4 bg-accent/20 hover:bg-accent/40 text-slate-300 py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors border border-accent/30"
+                >
+                  <FileText className="w-4 h-4" />
+                  Ver Histórico Detalhado
+                </button>
               </div>
             );
           })
         )}
       </div>
+
+      {/* History Modal */}
+      {selectedClientForHistory && (
+        <ClientHistoryModal 
+          client={selectedClientForHistory} 
+          loans={getClientStats(selectedClientForHistory.id!).allLoans}
+          onClose={() => setSelectedClientForHistory(null)} 
+        />
+      )}
     </div>
   );
 };
