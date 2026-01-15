@@ -25,14 +25,24 @@ const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, onViewDetails, tit
       }
     }
 
-    await loanService.updateLoanStatus(loan.id!, newStatus);
-    onUpdate();
+    try {
+      await loanService.updateLoanStatus(loan.id!, newStatus);
+      onUpdate();
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error);
+      alert("Erro ao atualizar status. Verifique se você está logado.");
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja apagar este registro? Essa ação não pode ser desfeita e removerá o empréstimo do histórico.')) {
-      await loanService.deleteLoan(id);
-      onUpdate();
+      try {
+        await loanService.deleteLoan(id);
+        onUpdate();
+      } catch (error) {
+        console.error("Erro na exclusão:", error);
+        alert("Não foi possível excluir o empréstimo. Verifique se você está logado no sistema (Permissão Negada).");
+      }
     }
   };
 
