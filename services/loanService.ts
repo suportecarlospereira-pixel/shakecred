@@ -31,13 +31,24 @@ export const loanService = {
     }
   },
 
-  // Update loan status
+  // Update loan status (Generic update for status)
   updateLoanStatus: async (id: string, status: Loan['status']) => {
     try {
       const loanRef = doc(db, LOAN_COLLECTION, id);
       await updateDoc(loanRef, { status });
     } catch (e) {
       console.error("Error updating document: ", e);
+      throw e;
+    }
+  },
+
+  // NOVA FUNÇÃO: Atualizar dados gerais do empréstimo (Datas, Parcelas, etc)
+  updateLoan: async (id: string, data: Partial<Loan>) => {
+    try {
+      const loanRef = doc(db, LOAN_COLLECTION, id);
+      await updateDoc(loanRef, data);
+    } catch (e) {
+      console.error("Error updating loan: ", e);
       throw e;
     }
   },
