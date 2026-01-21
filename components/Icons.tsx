@@ -11,7 +11,8 @@ import {
   AlertCircle,
   TrendingUp,
   Trash2,
-  Search
+  Search,
+  Edit // Adicionado
 } from 'lucide-react';
 
 // Exporting directly from lucide-react for use in the app
@@ -27,5 +28,6 @@ export {
   AlertCircle,
   TrendingUp,
   Trash2,
-  Search
+  Search,
+  Edit // Exportado
 };
