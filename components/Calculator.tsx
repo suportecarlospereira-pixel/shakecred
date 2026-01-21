@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, Plus, User, Calendar, Divide } from 'lucide-react';
+import { DollarSign, TrendingUp, Plus, User, Calendar } from 'lucide-react';
 import { Loan, Client, Installment } from '../types';
 import { loanService } from '../services/loanService';
 
@@ -12,67 +12,80 @@ interface CalculatorProps {
 const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNavigateToClients }) => {
   const [amount, setAmount] = useState<number | string>('');
   const [rate, setRate] = useState<number | string>(20);
-  const [days, setDays] = useState<number | string>(30);
-  const [installmentsCount, setInstallmentsCount] = useState<number>(1); // 1x, 2x, 3x...
+  const [intervalDays, setIntervalDays] = useState<number | string>(30); // Mudança de "Total Dias" para "Intervalo"
+  const [installmentsCount, setInstallmentsCount] = useState<number>(1);
   const [selectedClientId, setSelectedClientId] = useState('');
   
   const [results, setResults] = useState({
     interestAmount: 0,
     totalToPay: 0,
-    dailyPayment: 0
+    installmentValue: 0
   });
 
   const [previewInstallments, setPreviewInstallments] = useState<Installment[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Calculate Totals
+  // 1. Calcular Totais Financeiros
   useEffect(() => {
     const principal = Number(amount) || 0;
     const percentage = Number(rate) || 0;
-    const duration = Number(days) || 1;
-
+    
     const interest = principal * (percentage / 100);
     const total = principal + interest;
+    const count = Number(installmentsCount) || 1;
     
     setResults({
       interestAmount: interest,
       totalToPay: total,
-      dailyPayment: total / duration
+      installmentValue: total / count
     });
 
-  }, [amount, rate, days]);
+  }, [amount, rate, installmentsCount]);
 
-  // Calculate Dates Preview based on Days & Installments
+  // 2. Gerar Previsão de Parcelas (Datas e Valores)
   useEffect(() => {
-    if (!days || !installmentsCount || results.totalToPay === 0) {
+    if (!installmentsCount || results.totalToPay === 0) {
       setPreviewInstallments([]);
       return;
     }
 
-    const totalDays = Number(days);
+    const interval = Number(intervalDays) || 30;
     const count = Number(installmentsCount);
-    const intervalDays = Math.floor(totalDays / count);
-    const installmentValue = results.totalToPay / count;
+    const valuePerInstallment = results.totalToPay / count;
 
     const newInstallments: Installment[] = [];
+    const baseDate = new Date(); // Data base é hoje
     
     for (let i = 1; i <= count; i++) {
-      const date = new Date();
-      // Logic: If 60 days / 2x:
-      // 1st = today + 30
-      // 2nd = today + 60
-      date.setDate(date.getDate() + (intervalDays * i));
+      // Cria uma nova data baseada em Hoje + (Intervalo * numero da parcela)
+      const date = new Date(baseDate);
+      date.setDate(baseDate.getDate() + (interval * i));
+      
+      // Ajuste para meio-dia para evitar problemas de fuso horário ao converter string
+      date.setHours(12, 0, 0, 0); 
       
       newInstallments.push({
         number: i,
-        amount: installmentValue,
+        amount: valuePerInstallment,
         dueDate: date.toISOString(),
         status: 'pending'
       });
     }
     setPreviewInstallments(newInstallments);
 
-  }, [days, installmentsCount, results.totalToPay]);
+  }, [intervalDays, installmentsCount, results.totalToPay]);
+
+  // Função para editar manualmente uma data na lista
+  const handleDateChange = (installmentNumber: number, newDateValue: string) => {
+    setPreviewInstallments(prev => prev.map(inst => {
+      if (inst.number === installmentNumber) {
+        // Criar data ao meio-dia para garantir consistência
+        const newDate = new Date(newDateValue + 'T12:00:00');
+        return { ...inst, dueDate: newDate.toISOString() };
+      }
+      return inst;
+    }));
+  };
 
   const handleCreateLoan = async () => {
     if (!amount || !selectedClientId) {
@@ -86,10 +99,10 @@ const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNav
     setLoading(true);
     try {
       const startDate = new Date();
-      // Final due date is the date of the last installment
+      // A data final do empréstimo é a data da última parcela
       const finalDueDate = previewInstallments.length > 0 
         ? previewInstallments[previewInstallments.length - 1].dueDate 
-        : new Date(startDate.setDate(startDate.getDate() + Number(days))).toISOString();
+        : new Date().toISOString();
 
       const newLoan: Omit<Loan, 'id'> = {
         clientId: selectedClient.id,
@@ -100,7 +113,7 @@ const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNav
         profit: results.interestAmount,
         startDate: startDate.toISOString(),
         dueDate: finalDueDate,
-        installments: previewInstallments, // Save the schedule
+        installments: previewInstallments, // Salva com as datas personalizadas
         status: 'active',
         createdAt: Date.now()
       };
@@ -110,7 +123,7 @@ const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNav
       // Reset form
       setAmount('');
       setInstallmentsCount(1);
-      setDays(30);
+      setIntervalDays(30);
       setSelectedClientId('');
       onLoanAdded();
       alert(`Empréstimo parcelado em ${installmentsCount}x criado com sucesso!`);
@@ -123,13 +136,13 @@ const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNav
   };
 
   return (
-    <div className="bg-secondary p-6 rounded-2xl shadow-xl border border-accent/50">
-      <h2 className="text-xl font-bold text-emerald-400 mb-6 flex items-center gap-2">
+    <div className="bg-secondary p-6 rounded-2xl shadow-xl border border-accent/50 h-full flex flex-col">
+      <h2 className="text-xl font-bold text-emerald-400 mb-6 flex items-center gap-2 shrink-0">
         <TrendingUp className="w-5 h-5" />
         Novo Empréstimo
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="flex-1 overflow-y-auto pr-2 space-y-6">
         {/* Inputs */}
         <div className="space-y-4">
            <div>
@@ -187,11 +200,11 @@ const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNav
               />
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Total Dias</label>
+              <label className="block text-sm text-slate-400 mb-1" title="Dias entre cada parcela">Intervalo (Dias)</label>
               <input 
                 type="number" 
-                value={days}
-                onChange={(e) => setDays(e.target.value)}
+                value={intervalDays}
+                onChange={(e) => setIntervalDays(e.target.value)}
                 className="w-full bg-dark border border-accent rounded-lg p-3 text-white focus:outline-none focus:border-primary transition-colors"
                 placeholder="30"
               />
@@ -203,12 +216,10 @@ const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNav
                 onChange={(e) => setInstallmentsCount(Number(e.target.value))}
                 className="w-full bg-dark border border-accent rounded-lg p-3 text-white focus:outline-none focus:border-primary transition-colors appearance-none"
               >
-                <option value={1}>1x</option>
-                <option value={2}>2x</option>
-                <option value={3}>3x</option>
-                <option value={4}>4x</option>
-                <option value={5}>5x</option>
-                <option value={6}>6x</option>
+                {/* Gerando opções de 1x até 12x */}
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((num) => (
+                  <option key={num} value={num}>{num}x</option>
+                ))}
               </select>
             </div>
           </div>
@@ -225,22 +236,36 @@ const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNav
                 </span>
               </div>
               <div className="flex justify-between items-center pb-2">
-                <span className="text-slate-400">Lucro</span>
+                <span className="text-slate-400">Lucro Estimado</span>
                 <span className="text-emerald-400 font-bold">
                   {results.interestAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </span>
               </div>
             </div>
 
-            {/* Installment Preview */}
+            {/* Installment Preview Editable */}
             {previewInstallments.length > 0 && (
               <div className="bg-secondary/50 rounded-lg p-3 border border-accent/20">
-                <p className="text-xs font-bold text-slate-500 uppercase mb-2">Previsão de Recebimento</p>
-                <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                <p className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center justify-between">
+                  <span>Configuração de Parcelas</span>
+                  <span className="text-[10px] font-normal opacity-70">Edite as datas se necessário</span>
+                </p>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                   {previewInstallments.map((inst) => (
-                    <div key={inst.number} className="flex justify-between text-xs text-slate-300">
-                      <span>{inst.number}ª Parcela ({new Date(inst.dueDate).toLocaleDateString('pt-BR')})</span>
-                      <span className="font-bold text-white">
+                    <div key={inst.number} className="flex items-center justify-between text-xs gap-2">
+                      <span className="text-slate-400 w-8">{inst.number}ª</span>
+                      
+                      {/* Date Input for Customization */}
+                      <div className="flex-1">
+                        <input 
+                          type="date"
+                          value={new Date(inst.dueDate).toISOString().split('T')[0]}
+                          onChange={(e) => handleDateChange(inst.number, e.target.value)}
+                          className="w-full bg-dark border border-accent/30 rounded px-2 py-1 text-white text-xs focus:border-primary focus:outline-none"
+                        />
+                      </div>
+
+                      <span className="font-bold text-white min-w-[80px] text-right">
                         {inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
                     </div>
@@ -253,7 +278,7 @@ const CalculatorComp: React.FC<CalculatorProps> = ({ onLoanAdded, clients, onNav
           <button 
             onClick={handleCreateLoan}
             disabled={loading || !amount || !selectedClientId}
-            className="w-full bg-primary hover:bg-emerald-600 text-dark font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary hover:bg-emerald-600 text-dark font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             {loading ? 'Processando...' : (
               <>
