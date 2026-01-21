@@ -12,7 +12,11 @@ import {
   TrendingUp,
   Trash2,
   Search,
-  Edit // Adicionado
+  // Novos ícones necessários
+  List,
+  Edit,
+  X,
+  Save
 } from 'lucide-react';
 
 // Exporting directly from lucide-react for use in the app
@@ -29,5 +33,9 @@ export {
   TrendingUp,
   Trash2,
   Search,
-  Edit // Exportado
+  // Exportando os novos ícones
+  List,
+  Edit,
+  X,
+  Save
 };
