@@ -31,7 +31,7 @@ export const loanService = {
     }
   },
 
-  // Update loan status (Generic update for status)
+  // Update loan status
   updateLoanStatus: async (id: string, status: Loan['status']) => {
     try {
       const loanRef = doc(db, LOAN_COLLECTION, id);
@@ -42,7 +42,7 @@ export const loanService = {
     }
   },
 
-  // NOVA FUNÇÃO: Atualizar dados gerais do empréstimo (Datas, Parcelas, etc)
+  // NOVA FUNÇÃO NECESSÁRIA PARA A EDIÇÃO
   updateLoan: async (id: string, data: Partial<Loan>) => {
     try {
       const loanRef = doc(db, LOAN_COLLECTION, id);
