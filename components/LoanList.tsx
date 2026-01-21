@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, Trash2, Calendar, List, Edit, X, Save } from './Icons'; // Importando Edit
+import { CheckCircle, Trash2, Calendar, List, Edit, X, Save } from './Icons'; 
 import { Loan, Installment } from '../types';
 import { loanService } from '../services/loanService';
 
@@ -52,6 +52,7 @@ const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, onViewDetails, tit
     if (loan.installments && loan.installments.length > 0) {
       setEditInstallments([...loan.installments]); // Clone array
     } else {
+      // Se não tiver installments, usa a data de vencimento principal
       setEditSingleDate(new Date(loan.dueDate).toISOString().split('T')[0]);
     }
   };
@@ -180,7 +181,8 @@ const LoanList: React.FC<LoanListProps> = ({ loans, onUpdate, onViewDetails, tit
                         </span>
                       </td>
                       <td className="p-4 text-right flex justify-end gap-2">
-                        {/* Botão Editar Data */}
+                        
+                        {/* AQUI ESTÁ O BOTÃO DE EDITAR QUE VOCÊ QUER */}
                         {!readOnly && (
                            <button 
                              onClick={() => startEditing(loan)}
